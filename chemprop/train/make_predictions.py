@@ -11,7 +11,12 @@ from chemprop.data import (
     get_data,
     get_data_from_smiles,
 )
-from chemprop.features import set_extra_atom_fdim, set_extra_bond_fdim
+from chemprop.features import (
+    set_explicit_h,
+    set_extra_atom_fdim,
+    set_extra_bond_fdim,
+    set_reaction,
+)
 from chemprop.utils import (
     load_args,
     load_checkpoint,
@@ -52,6 +57,10 @@ def make_predictions(
 
     if args.bond_features_path is not None:
         set_extra_bond_fdim(train_args.bond_features_size)
+
+    # set explicit H option and reaction option
+    set_explicit_h(train_args.explicit_h)
+    set_reaction(train_args.reaction, train_args.reaction_mode)
 
     print("Loading data")
     if smiles is not None:

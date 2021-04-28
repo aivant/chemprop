@@ -1,5 +1,6 @@
 from collections import defaultdict
 import csv
+import json
 from logging import Logger
 import os
 import sys
@@ -13,7 +14,7 @@ from chemprop.args import TrainArgs
 from chemprop.constants import TEST_SCORES_FILE_NAME, TRAIN_LOGGER_NAME
 from chemprop.data import get_data, get_task_names, MoleculeDataset, validate_dataset_type
 from chemprop.utils import create_logger, makedirs, timeit
-from chemprop.features import set_extra_atom_fdim, set_extra_bond_fdim
+from chemprop.features import set_extra_atom_fdim, set_extra_bond_fdim, set_explicit_h, set_reaction
 
 
 @timeit(logger_name=TRAIN_LOGGER_NAME)
@@ -55,6 +56,10 @@ def cross_validate(args: TrainArgs,
     makedirs(args.save_dir)
     args.save(os.path.join(args.save_dir, 'args.json'))
 
+    #set explicit H option and reaction option
+    set_explicit_h(args.explicit_h)
+    set_reaction(args.reaction, args.reaction_mode)
+        
     # Get data
     debug('Loading data')
     data = get_data(
@@ -87,7 +92,17 @@ def cross_validate(args: TrainArgs,
         args.save_dir = os.path.join(save_dir, f'fold_{fold_num}')
         makedirs(args.save_dir)
         data.reset_features_and_targets()
-        model_scores = train_func(args, data, logger)
+
+        # If resuming experiment, load results from trained models
+        test_scores_path = os.path.join(args.save_dir, 'test_scores.json')
+        if args.resume_experiment and os.path.exists(test_scores_path):
+            print('Loading scores')
+            with open(test_scores_path) as f:
+                model_scores = json.load(f)
+        # Otherwise, train the models
+        else:
+            model_scores = train_func(args, data, logger)
+
         for metric, scores in model_scores.items():
             all_scores[metric].append(scores)
     all_scores = dict(all_scores)

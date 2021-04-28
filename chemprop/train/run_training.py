@@ -1,3 +1,4 @@
+import json
 import os
 from logging import Logger
 from typing import Any, Dict, List, Optional
@@ -185,6 +186,7 @@ def run_training(
             val_data=val_data,
             test_data=test_data,
             smiles_columns=args.smiles_columns,
+            logger=logger,
         )
 
     if args.features_scaling:
@@ -468,6 +470,10 @@ def run_training(
                 info(
                     f"Ensemble test {task_name} {metric} = {ensemble_score:.6f}"
                 )
+
+    # Save scores
+    with open(os.path.join(args.save_dir, "test_scores.json"), "w") as f:
+        json.dump(ensemble_scores, f, indent=4, sort_keys=True)
 
     # Optionally save test preds
     if args.save_preds:

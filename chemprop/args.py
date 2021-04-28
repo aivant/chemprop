@@ -11,7 +11,7 @@ from tap import (
 from typing_extensions import Literal
 
 import chemprop.data.utils
-from chemprop.data import set_cache_mol
+from chemprop.data import set_cache_mol, empty_cache
 from chemprop.features import get_available_features_generators
 
 Metric = Literal[
@@ -127,6 +127,10 @@ class CommonArgs(Tap):
     """
     Whether to not cache the RDKit molecule for each SMILES string to reduce memory usage (cached by default).
     """
+    empty_cache: bool = False
+    """
+    Whether to empty all caches before training or predicting. This is necessary if multiple jobs are run within a single script and the atom or bond features change.
+    """
 
     def __init__(self, *args, **kwargs):
         super(CommonArgs, self).__init__(*args, **kwargs)
@@ -163,6 +167,10 @@ class CommonArgs(Tap):
         to the additional molecule-level features.
         """
         return not self.no_features_scaling
+
+    @features_scaling.setter
+    def features_scaling(self, features_scaling: bool) -> None:
+        self.no_features_scaling = not features_scaling
 
     @property
     def atom_features_size(self) -> int:
@@ -243,6 +251,9 @@ class CommonArgs(Tap):
             )
 
         set_cache_mol(not self.no_cache_mol)
+
+        if self.empty_cache:
+            empty_cache()
 
 
 class TrainArgs(CommonArgs):
@@ -325,6 +336,11 @@ class TrainArgs(CommonArgs):
     """
     save_preds: bool = False
     """Whether to save test split predictions during training."""
+    resume_experiment: bool = False
+    """
+    Whether to resume the experiment.
+    Loads test results from any folds that have already been completed and skips training those folds.
+    """
 
     # Model arguments
     bias: bool = False
@@ -375,6 +391,21 @@ class TrainArgs(CommonArgs):
     """Aggregation scheme for atomic vectors into molecular vectors"""
     aggregation_norm: int = 100
     """For norm aggregation, number by which to divide summed up atomic features"""
+    reaction: bool = False
+    """
+    Whether to adjust MPNN layer to take reactions as input instead of molecules.
+    """
+    reaction_mode: Literal['reac_prod', 'reac_diff', 'prod_diff'] = 'reac_diff'
+    """
+    Choices for construction of atom and bond features for reactions
+    :code:`reac_prod`: concatenates the reactants feature with the products feature.
+    :code:`reac_diff`: concatenates the reactants feature with the difference in features between reactants and products. 
+    :code:`prod_diff`: concatenates the products feature with the difference in features between reactants and products. 
+    """
+    explicit_h: bool = False
+    """
+    Whether H are explicitly specified in input (and should be kept this way).
+    """
 
     # Training arguments
     epochs: int = 30

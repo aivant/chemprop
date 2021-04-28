@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Tuple
 from functools import reduce
 
 import numpy as np
@@ -185,7 +185,7 @@ class MPN(nn.Module):
                                           for _ in range(args.number_of_molecules)])
 
     def forward(self,
-                batch: Union[List[List[str]], List[List[Chem.Mol]], BatchMolGraph],
+                batch: Union[List[List[str]], List[List[Chem.Mol]], List[List[Tuple[Chem.Mol, Chem.Mol]]], List[BatchMolGraph]],
                 features_batch: List[np.ndarray] = None,
                 atom_descriptors_batch: List[np.ndarray] = None,
                 atom_features_batch: List[np.ndarray] = None,
@@ -194,7 +194,9 @@ class MPN(nn.Module):
         Encodes a batch of molecules.
 
         :param batch: A list of list of SMILES, a list of list of RDKit molecules, or a
-                      :class:`~chemprop.features.featurization.BatchMolGraph`.
+                      list of :class:`~chemprop.features.featurization.BatchMolGraph`.
+                      The outer list or BatchMolGraph is of length :code:`num_molecules` (number of datapoints in batch),
+                      the inner list is of length :code:`number_of_molecules` (number of molecules per datapoint).
         :param features_batch: A list of numpy arrays containing additional features.
         :param atom_descriptors_batch: A list of numpy arrays containing additional atom descriptors.
         :param atom_features_batch: A list of numpy arrays containing additional atom features.
@@ -202,25 +204,39 @@ class MPN(nn.Module):
         :return: A PyTorch tensor of shape :code:`(num_molecules, hidden_size)` containing the encoding of each molecule.
         """
         if type(batch[0]) != BatchMolGraph:
+            # Group first molecules, second molecules, etc for mol2graph
+            batch = [[mols[i] for mols in batch] for i in range(len(batch[0]))]
+
             # TODO: handle atom_descriptors_batch with multiple molecules per input
             if self.atom_descriptors == 'feature':
-                if len(batch[0]) > 1:
+                if len(batch) > 1:
                     raise NotImplementedError('Atom/bond descriptors are currently only supported with one molecule '
                                               'per input (i.e., number_of_molecules = 1).')
 
-                batch = [mol2graph(b, atom_features_batch, bond_features_batch,
-                                   overwrite_default_atom_features=self.overwrite_default_atom_features,
-                                   overwrite_default_bond_features=self.overwrite_default_bond_features)
-                         for b in batch]
+                batch = [
+                    mol2graph(
+                        mols=b,
+                        atom_features_batch=atom_features_batch,
+                        bond_features_batch=bond_features_batch,
+                        overwrite_default_atom_features=self.overwrite_default_atom_features,
+                        overwrite_default_bond_features=self.overwrite_default_bond_features
+                    )
+                    for b in batch
+                ]
             elif bond_features_batch is not None:
-                if len(batch[0]) > 1:
+                if len(batch) > 1:
                     raise NotImplementedError('Atom/bond descriptors are currently only supported with one molecule '
                                               'per input (i.e., number_of_molecules = 1).')
 
-                batch = [mol2graph(b, None, bond_features_batch,
-                                   overwrite_default_atom_features=self.overwrite_default_atom_features,
-                                   overwrite_default_bond_features=self.overwrite_default_bond_features)
-                         for b in batch]
+                batch = [
+                    mol2graph(
+                        mols=b,
+                        bond_features_batch=bond_features_batch,
+                        overwrite_default_atom_features=self.overwrite_default_atom_features,
+                        overwrite_default_bond_features=self.overwrite_default_bond_features
+                    )
+                    for b in batch
+                ]
             else:
                 batch = [mol2graph(b) for b in batch]
 
